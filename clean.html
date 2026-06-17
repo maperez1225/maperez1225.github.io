@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Content-Security-Policy" content="
+            default-src 'self' https://fonts.gstatic.com;
+            script-src 'self' 'unsafe-inline' https://ajax.googleapis.com;
+            style-src 'self' 'unsafe-inline' https://ajax.googleapis.com;
+            connect-src 'self' https://*.cbsivideo.com https://ajax.googleapis.com;
+            img-src 'self' data: https://www.directvla.com;
+            media-src 'self' blob:;
+        ">
+        <title>DSPORTS</title>
+
+        <link rel="icon" type="image/png" href="https://www.directvla.com/favicon.ico">
+        
+        <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/shaka-player/5.1.8/controls.css">
+        
+        <script src="https://ajax.googleapis.com/ajax/libs/shaka-player/5.1.8/shaka-player.ui.js"></script>
+
+        <style>
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background-color: #121212;
+                color: #ffffff;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                margin: 0;
+                padding: 20px;
+            }
+            h1 { margin-bottom: 20px; }
+            
+            /* Contenedor del reproductor Shaka UI */
+            .video-container {
+                width: 100%;
+                border-radius: 0px;
+                overflow: hidden;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            }
+            video {
+                width: 100%;
+                height: auto;
+            }
+            .controls {
+                margin-top: 20px;
+                display: flex;
+                gap: 10px;
+            }
+            button {
+                background-color: #007bff;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                font-size: 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: background-color 0.2s;
+            }
+            button:hover { background-color: #0056b3; }
+            button.active {
+                background-color: #28a745;
+            }
+            #status {
+                margin-top: 15px;
+                font-size: 14px;
+                color: #aaaaaa;
+            }
+        </style>
+    </head>
+    <body>
+
+
+        <div class="video-container" data-shaka-player-container>
+            <video id="video" data-shaka-player preload="none" autoplay></video>
+        </div>
+
+        <div class="controls">
+            <button class="channel-btn active" data-id="dsports">DSPORTS</button>
+            <button class="channel-btn" data-id="dsports2">DSPORTS 2</button>
+            <button class="channel-btn" data-id="dsportsPlus">DSPORTS +</button>
+        </div>
+
+        <div id="status"></div>
+
+        <script>
+            const channels = {
+                dsports: {
+                    name: "DSPORTS",
+                    manifest: "https://prope66bd35h.airspace-cdn.cbsivideo.com/out/v1/eb04c8bf15a94f14ad1d952659d422b7/manifest.mpd",
+                    keyId: "9afc53e82bb24c20a5835a84138f6c13",
+                    key: "abdd52917474f2342ff04f0d4722123a"
+                },
+                dsports2: {
+                    name: "DSPORTS 2",
+                    manifest: "https://prope79d3g55.airspace-cdn.cbsivideo.com/out/v1/faa5cf8cb19e4de99417df05a463f9d5/manifest.mpd",
+                    keyId: "010b4fa338184f52a712121ad62ae9b4",
+                    key: "e310bad2a570b60f7799e2aa0fb33a71"
+                },
+                dsportsPlus: {
+                    name: "DSPORTS +",
+                    manifest: "https://prope9660ag6.airspace-cdn.cbsivideo.com/out/v1/a634dbd5b8474f38b38a8ce37dd77b50/manifest.mpd",
+                    keyId: "41121cea7a3d49a78c9496d1b0d919e4",
+                    key: "de048d4c2870b8d53961aaeac1804947"
+                }
+            };
+
+            let player;
+            let videoContainer;
+            const statusDiv = document.getElementById('status');
+            const buttons = document.querySelectorAll('.channel-btn');
+
+
+            async function initApp() {
+                shaka.polyfill.installAll();
+                if (shaka.Player.isBrowserSupported()) {
+                    initPlayer();
+                } else {
+                    statusDiv.innerText = "Error: Tu navegador no soporta Shaka Player.";
+                }
+            }
+
+            async function initPlayer() {
+                videoContainer = document.querySelector('[data-shaka-player-container]');
+                const video = document.querySelector('[data-shaka-player]');
+                const ui = video['ui'];
+                const controls = ui.getControls();
+                player = controls.getPlayer();
+
+                const config = {
+                    'controlPanelElements': [
+                        'play_pause',
+                        'time_and_duration',
+                        'mute',
+                        'volume',
+                        'spacer',
+                        'overflow_menu',
+                        'fullscreen',
+                    ],
+                    'contextMenuElements' : [
+                        'statistics',
+                    ],
+                    'overflowMenuButtons' : [
+                        'quality',
+                        'statistics',
+                    ],
+                    'statisticsList' : [
+                        'width',
+                        'height',
+                        'currentCodecs',
+                        'estimatedBandwidth',
+                        'streamBandwidth',
+                        'liveLatency',
+                        'bufferingTime',
+                        'stallsDetected',
+                    ],
+                }
+                ui.configure(config);
+
+                player.configure({
+                    streaming: {
+                        bufferingGoal: 16,
+                        bufferBehind: 10,
+                    },
+                });
+                
+                player.addEventListener('error', onPlayerErrorEvent);
+
+                buttons.forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        buttons.forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        loadChannel(e.target.dataset.id);
+                    });
+                });
+                loadChannel('dsports')
+            }
+
+            async function loadChannel(channelId) {
+                const channel = channels[channelId];
+                const clearKeysConfig = {};
+                clearKeysConfig[channel.keyId] = channel.key;
+
+                player.configure({
+                    preferredAudio: [{
+                        channelCount: 6
+                    }],
+                    drm: {
+                        clearKeys: clearKeysConfig
+                    }
+                });
+
+                try {
+                    await player.load(channel.manifest);
+                } catch (e) {
+                    onPlayerError(e);
+                }
+            }
+
+            function onPlayerErrorEvent(event) {
+                onPlayerError(event.detail);
+            }
+
+            function onPlayerError(error) {
+                console.error('Error de Shaka Player', error);
+                statusDiv.innerText = `Error: Código ${error.code}`;
+            }
+
+            document.addEventListener('shaka-ui-loaded', initApp);
+            if (document.readyState === 'complete' && window.shaka) {
+                initApp();
+            }
+        </script>
+    </body>
+</html>
