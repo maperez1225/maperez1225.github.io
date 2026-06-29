@@ -361,25 +361,7 @@
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     var key = e.key;
 
-    if (key === 'ArrowUp') {
-      e.preventDefault();
-      var prev = (activeIdx - 1 + CHANNELS.length) % CHANNELS.length;
-      chBtns.forEach(function(b) { b.classList.remove('active'); });
-      chBtns[prev].classList.add('active');
-      activeIdx = prev;
-      showSidebar();
-      loadChannel(prev);
-
-    } else if (key === 'ArrowDown') {
-      e.preventDefault();
-      var next = (activeIdx + 1) % CHANNELS.length;
-      chBtns.forEach(function(b) { b.classList.remove('active'); });
-      chBtns[next].classList.add('active');
-      activeIdx = next;
-      showSidebar();
-      loadChannel(next);
-
-    } else if (key === 'm' || key === 'M') {
+    if (key === 'm' || key === 'M') {
       video.muted = !video.muted;
 
     } else if (key === 'f' || key === 'F') {
@@ -387,28 +369,6 @@
       else exitFullscreen();
     }
   });
-
-  // ── Scroll to change channel ──────────────────────────────────────────────
-  container.addEventListener('wheel', function(e) {
-    e.preventDefault();
-    if (e.deltaY < 0) {
-      // Scroll up → previous channel
-      var prev = (activeIdx - 1 + CHANNELS.length) % CHANNELS.length;
-      chBtns.forEach(function(b) { b.classList.remove('active'); });
-      chBtns[prev].classList.add('active');
-      activeIdx = prev;
-      showSidebar();
-      loadChannel(prev);
-    } else {
-      // Scroll down → next channel
-      var next = (activeIdx + 1) % CHANNELS.length;
-      chBtns.forEach(function(b) { b.classList.remove('active'); });
-      chBtns[next].classList.add('active');
-      activeIdx = next;
-      showSidebar();
-      loadChannel(next);
-    }
-  }, { passive: false });
 
   // ── Boot ──────────────────────────────────────────────────────────────────
   init();
