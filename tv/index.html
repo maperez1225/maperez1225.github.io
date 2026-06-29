@@ -18,21 +18,13 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root {
-      --accent:      #4f7cff;
-      --accent-dim:  rgba(79,124,255,0.15);
-      --accent-glow: rgba(79,124,255,0.35);
-      --danger:      #ff4f6a;
-      --glass:       rgba(0,0,0,0.55);
-      --glass-blur:  blur(14px);
-    }
-
     html, body {
       width: 100%; height: 100%;
       background: #000;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       overflow: hidden;
       color: #f0f0f8;
+      -webkit-user-select: none;
       user-select: none;
     }
 
@@ -77,58 +69,69 @@
        ════════════════════════════════════════════════════════ */
     #channel-sidebar {
       position: absolute; top: 0; left: 0; bottom: 120px; z-index: 40;
-      display: flex; flex-direction: column; justify-content: center;
+      display: -webkit-flex; display: flex;
+      -webkit-flex-direction: column; flex-direction: column;
+      -webkit-justify-content: center; justify-content: center;
       padding: 36px 20px;
       gap: 16px;
-      opacity: 0; transition: opacity .3s;
+      opacity: 0;
+      -webkit-transition: opacity .3s; transition: opacity .3s;
       pointer-events: none;
     }
 
-    /* Sidebar visibility is driven entirely by JS (mirrors Shaka UI show/hide) */
+    /* Sidebar visibility driven by JS */
     #channel-sidebar.visible { opacity: 1; }
 
     /* Only the actual buttons capture clicks */
     #channel-sidebar .ch-btn { pointer-events: auto; }
 
     .ch-btn {
-      display: flex; align-items: center; gap: 18px;
+      display: -webkit-flex; display: flex;
+      -webkit-align-items: center; align-items: center;
+      gap: 18px;
       padding: 26px 32px;
       border-radius: 16px;
       border: 2px solid rgba(255,255,255,.1);
-      background: var(--glass); backdrop-filter: var(--glass-blur);
+      /* solid fallback — no backdrop-filter (unsupported on Chrome 68) */
+      background: rgba(0,0,0,0.72);
       color: rgba(255,255,255,.6);
       cursor: pointer; outline: none;
-      transition: all .2s;
+      -webkit-transition: all .2s; transition: all .2s;
       -webkit-tap-highlight-color: transparent;
       white-space: nowrap;
       min-width: 240px;
     }
     .ch-btn:hover, .ch-btn:focus {
       border-color: rgba(255,255,255,.35);
-      background: rgba(255,255,255,.08);
+      background: rgba(255,255,255,.1);
       color: #fff;
-      transform: translateX(4px);
+      -webkit-transform: translateX(4px); transform: translateX(4px);
     }
     .ch-btn.active {
-      border-color: var(--accent);
-      background: var(--accent-dim);
+      border-color: #4f7cff;
+      background: rgba(79,124,255,0.18);
       color: #fff;
-      box-shadow: 0 0 24px var(--accent-glow), inset 0 0 0 1px var(--accent);
-      transform: translateX(4px);
+      box-shadow: 0 0 24px rgba(79,124,255,0.35), inset 0 0 0 1px #4f7cff;
+      -webkit-transform: translateX(4px); transform: translateX(4px);
     }
 
     .ch-dot {
-      width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0;
+      width: 11px; height: 11px; border-radius: 50%; -webkit-flex-shrink: 0; flex-shrink: 0;
       background: rgba(255,255,255,.18);
     }
     .ch-btn.active .ch-dot {
-      background: var(--accent);
-      box-shadow: 0 0 6px var(--accent);
+      background: #4f7cff;
+      box-shadow: 0 0 6px #4f7cff;
+      -webkit-animation: livepulse 1.6s ease-in-out infinite;
       animation: livepulse 1.6s ease-in-out infinite;
     }
+    @-webkit-keyframes livepulse {
+      0%,100% { opacity: 1; -webkit-transform: scale(1); transform: scale(1); }
+      50%      { opacity: .5; -webkit-transform: scale(.7); transform: scale(.7); }
+    }
     @keyframes livepulse {
-      0%,100% { opacity: 1; transform: scale(1); }
-      50%      { opacity: .5; transform: scale(.7); }
+      0%,100% { opacity: 1; -webkit-transform: scale(1); transform: scale(1); }
+      50%      { opacity: .5; -webkit-transform: scale(.7); transform: scale(.7); }
     }
 
     .ch-name {
@@ -161,7 +164,7 @@
 
 <script>
   // ── Channel definitions ───────────────────────────────────────────────────
-  const CHANNELS = [
+  var CHANNELS = [
     {
       name:     'DSPORTS',
       manifest: 'https://prope66bd35h.airspace-cdn.cbsivideo.com/out/v1/eb04c8bf15a94f14ad1d952659d422b7/manifest.mpd',
@@ -183,18 +186,18 @@
   ];
 
   // ── State ─────────────────────────────────────────────────────────────────
-  let player    = null;
-  let ui        = null;
-  let activeIdx = 0;
+  var player    = null;
+  var ui        = null;
+  var activeIdx = 0;
 
   // ── Refs ──────────────────────────────────────────────────────────────────
-  const container  = document.getElementById('shaka-container');
-  const video      = document.getElementById('video');
-  const sidebar    = document.getElementById('channel-sidebar');
+  var container = document.getElementById('shaka-container');
+  var video     = document.getElementById('video');
+  var sidebar   = document.getElementById('channel-sidebar');
 
   // ── Sidebar idle timer ────────────────────────────────────────────────────
-  const IDLE_MS = 3000;
-  let idleTimer = null;
+  var IDLE_MS  = 3000;
+  var idleTimer = null;
 
   function showSidebar() {
     sidebar.classList.add('visible');
@@ -203,48 +206,78 @@
   }
 
   function hideSidebar() {
-    if (!sidebar.contains(document.activeElement))
+    if (!sidebar.contains(document.activeElement)) {
       sidebar.classList.remove('visible');
+    }
   }
 
   // ── Util ──────────────────────────────────────────────────────────────────
   function hexToBase64url(hex) {
     hex = hex.replace(/\s/g, '');
-    const bytes = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < bytes.length; i++)
+    var bytes = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < bytes.length; i++) {
       bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-    return btoa(String.fromCharCode(...bytes))
+    }
+    // Use apply instead of spread — safer on older engines
+    var binary = String.fromCharCode.apply(null, bytes);
+    return btoa(binary)
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
-  // ── Load channel ──────────────────────────────────────────────────────────
-  async function loadChannel(idx) {
-    if (!player) return;
-    const ch = CHANNELS[idx];
-    showSidebar();
+  // ── Cross-browser fullscreen helpers ─────────────────────────────────────
+  function getFullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
 
-    const wasFullscreen = !!document.fullscreenElement;
-
-    try {
-      await player.unload();
-      player.configure({
-        drm: {
-          clearKeys: {
-            [hexToBase64url(ch.keyId)]: hexToBase64url(ch.key),
-          },
-        },
-      });
-      await player.load(ch.manifest);
-      video.play().catch(() => {});
-      if (wasFullscreen && !document.fullscreenElement)
-        container.requestFullscreen().catch(() => {});
-    } catch (e) {
-      console.error(e);
+  function requestFullscreen(el) {
+    if (el.requestFullscreen) {
+      el.requestFullscreen().catch(function() {});
+    } else if (el.webkitRequestFullscreen) {
+      el.webkitRequestFullscreen();
     }
   }
 
+  function exitFullscreen() {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+  }
+
+  // ── Safe play ────────────────────────────────────────────────────────────
+  function safePlay() {
+    var result = video.play();
+    if (result && result.catch) {
+      result.catch(function() {});
+    }
+  }
+
+  // ── Load channel ──────────────────────────────────────────────────────────
+  function loadChannel(idx) {
+    if (!player) return;
+    var ch = CHANNELS[idx];
+    showSidebar();
+
+    var wasFullscreen = !!getFullscreenElement();
+    var clearKeys = {};
+    clearKeys[hexToBase64url(ch.keyId)] = hexToBase64url(ch.key);
+
+    player.unload().then(function() {
+      player.configure({ drm: { clearKeys: clearKeys } });
+      return player.load(ch.manifest);
+    }).then(function() {
+      safePlay();
+      if (wasFullscreen && !getFullscreenElement()) {
+        requestFullscreen(container);
+      }
+    }).catch(function(e) {
+      console.error(e);
+    });
+  }
+
   // ── Init ──────────────────────────────────────────────────────────────────
-  async function init() {
+  function init() {
     shaka.polyfill.installAll();
 
     if (!shaka.Player.isBrowserSupported()) {
@@ -252,73 +285,72 @@
       return;
     }
 
-    // Create player
     player = new shaka.Player();
-    await player.attach(video);
+    player.attach(video).then(function() {
 
-    // Create Shaka UI
-    ui = new shaka.ui.Overlay(player, container, video);
-    ui.configure({
-      controlPanelElements: [
-        'play_pause',
-        'time_and_duration',
-        'mute',
-        'volume',
-        'spacer',
-        'overflow_menu',
-        'fullscreen',
-      ],
-      contextMenuElements: [
-        'statistics',
-      ],
-      overflowMenuButtons: [
-        'quality',
-        'statistics',
-      ],
-      statisticsList: [
-        'width',
-        'height',
-        'currentCodecs',
-        'estimatedBandwidth',
-        'streamBandwidth',
-        'liveLatency',
-        'bufferingTime',
-        'stallsDetected',
-      ],
+      ui = new shaka.ui.Overlay(player, container, video);
+      ui.configure({
+        controlPanelElements: [
+          'play_pause',
+          'time_and_duration',
+          'mute',
+          'volume',
+          'spacer',
+          'overflow_menu',
+          'fullscreen',
+        ],
+        contextMenuElements: [
+          'statistics',
+        ],
+        overflowMenuButtons: [
+          'quality',
+          'statistics',
+        ],
+        statisticsList: [
+          'width',
+          'height',
+          'currentCodecs',
+          'estimatedBandwidth',
+          'streamBandwidth',
+          'liveLatency',
+          'bufferingTime',
+          'stallsDetected',
+        ],
+      });
+
+      // Mouse/touch activity shows the sidebar
+      container.addEventListener('mousemove',  showSidebar);
+      container.addEventListener('touchstart', showSidebar);
+      container.addEventListener('mouseenter', showSidebar);
+
+      // Keep visible while a channel button is focused (TV remote nav)
+      sidebar.addEventListener('focusin', function() {
+        clearTimeout(idleTimer);
+        sidebar.classList.add('visible');
+      });
+      sidebar.addEventListener('focusout', function() {
+        if (!sidebar.contains(document.activeElement)) {
+          idleTimer = setTimeout(hideSidebar, IDLE_MS);
+        }
+      });
+
+      player.addEventListener('error', function(e) { console.error(e.detail); });
+
+      // Show sidebar on load, then start first channel
+      showSidebar();
+      loadChannel(activeIdx);
+
+    }).catch(function(e) {
+      console.error(e);
     });
-
-    // Get the controls object for event hooks
-    const controls = ui.getControls();
-
-    // Independent idle timer — same behaviour as Shaka's own 3s fade
-    // Show on any mouse/touch activity inside the player container
-    container.addEventListener('mousemove',  showSidebar);
-    container.addEventListener('touchstart', showSidebar, { passive: true });
-    container.addEventListener('mouseenter', showSidebar);
-
-    // Keep visible while a channel button is focused (TV remote nav)
-    sidebar.addEventListener('focusin',  () => {
-      clearTimeout(idleTimer);
-      sidebar.classList.add('visible');
-    });
-    sidebar.addEventListener('focusout', () => {
-      if (!sidebar.contains(document.activeElement))
-        idleTimer = setTimeout(hideSidebar, IDLE_MS);
-    });
-
-    // Initial show
-    showSidebar();
-
-    player.addEventListener('error', e => console.error(e.detail));
-
-    await loadChannel(activeIdx);
   }
 
   // ── Channel buttons ───────────────────────────────────────────────────────
-  document.querySelectorAll('.ch-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const idx = +btn.dataset.idx;
-      document.querySelectorAll('.ch-btn').forEach(b => b.classList.remove('active'));
+  var chBtns = document.querySelectorAll('.ch-btn');
+  chBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var idx = parseInt(btn.getAttribute('data-idx'), 10);
+      chBtns.forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       btn.blur();
       if (idx === activeIdx) return;
@@ -328,50 +360,46 @@
   });
 
   // ── Global keyboard shortcuts ─────────────────────────────────────────────
-  document.addEventListener('keydown', e => {
-    // Don't hijack typing in inputs
+  document.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-    switch (e.key) {
-      // Channel navigation
-      case 'ArrowUp': {
-        e.preventDefault();
-        const prev = (activeIdx - 1 + CHANNELS.length) % CHANNELS.length;
-        const btns = document.querySelectorAll('.ch-btn');
-        btns.forEach(b => b.classList.remove('active'));
-        btns[prev].classList.add('active');
-        activeIdx = prev;
-        showSidebar();
-        loadChannel(prev);
-        break;
-      }
-      case 'ArrowDown': {
-        e.preventDefault();
-        const next = (activeIdx + 1) % CHANNELS.length;
-        const btns = document.querySelectorAll('.ch-btn');
-        btns.forEach(b => b.classList.remove('active'));
-        btns[next].classList.add('active');
-        activeIdx = next;
-        showSidebar();
-        loadChannel(next);
-        break;
-      }
-      // Mute
-      case 'm':
-      case 'M':
-        video.muted = !video.muted;
-        break;
-      // Fullscreen
-      case 'f':
-      case 'F':
-        if (!document.fullscreenElement) container.requestFullscreen().catch(() => {});
-        else document.exitFullscreen();
-        break;
+    var key = e.key;
+
+    if (key === 'ArrowUp') {
+      e.preventDefault();
+      var prev = (activeIdx - 1 + CHANNELS.length) % CHANNELS.length;
+      chBtns.forEach(function(b) { b.classList.remove('active'); });
+      chBtns[prev].classList.add('active');
+      activeIdx = prev;
+      showSidebar();
+      loadChannel(prev);
+      return;
+    }
+
+    if (key === 'ArrowDown') {
+      e.preventDefault();
+      var next = (activeIdx + 1) % CHANNELS.length;
+      chBtns.forEach(function(b) { b.classList.remove('active'); });
+      chBtns[next].classList.add('active');
+      activeIdx = next;
+      showSidebar();
+      loadChannel(next);
+      return;
+    }
+
+    if (key === 'm' || key === 'M') {
+      video.muted = !video.muted;
+      return;
+    }
+
+    if (key === 'f' || key === 'F') {
+      if (!getFullscreenElement()) requestFullscreen(container);
+      else exitFullscreen();
+      return;
     }
   });
 
   // ── Boot ──────────────────────────────────────────────────────────────────
-  document.addEventListener('shaka-ui-load-failed', e => showError(e.detail));
   init();
 </script>
 </body>
