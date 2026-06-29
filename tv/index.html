@@ -388,6 +388,28 @@
     }
   });
 
+  // ── Scroll to change channel ──────────────────────────────────────────────
+  container.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      // Scroll up → previous channel
+      var prev = (activeIdx - 1 + CHANNELS.length) % CHANNELS.length;
+      chBtns.forEach(function(b) { b.classList.remove('active'); });
+      chBtns[prev].classList.add('active');
+      activeIdx = prev;
+      showSidebar();
+      loadChannel(prev);
+    } else {
+      // Scroll down → next channel
+      var next = (activeIdx + 1) % CHANNELS.length;
+      chBtns.forEach(function(b) { b.classList.remove('active'); });
+      chBtns[next].classList.add('active');
+      activeIdx = next;
+      showSidebar();
+      loadChannel(next);
+    }
+  }, { passive: false });
+
   // ── Boot ──────────────────────────────────────────────────────────────────
   init();
 </script>
