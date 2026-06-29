@@ -359,11 +359,11 @@
       // Seek
       case 'ArrowLeft':
         e.preventDefault();
-        video.currentTime = Math.max(0, video.currentTime - 10);
+        video.currentTime = Math.max(0, video.currentTime - 5);
         break;
       case 'ArrowRight':
         e.preventDefault();
-        video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+        video.currentTime = Math.min(video.duration || 0, video.currentTime + 5);
         break;
       // Mute
       case 'm':
