@@ -243,20 +243,6 @@
     }
   }
 
-  // ── Auto fullscreen on first load ─────────────────────────────────────────
-  let hasAutoFullscreened = false;
-  function tryAutoFullscreen() {
-    if (hasAutoFullscreened) return;
-    hasAutoFullscreened = true;
-    container.requestFullscreen().catch(() => {});
-  }
-
-  // Most browsers require a user gesture before allowing fullscreen.
-  // We try immediately on load, and fall back to the first user interaction.
-  document.addEventListener('click',     tryAutoFullscreen, { once: true });
-  document.addEventListener('keydown',   tryAutoFullscreen, { once: true });
-  document.addEventListener('touchstart',tryAutoFullscreen, { once: true });
-
   // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
     shaka.polyfill.installAll();
@@ -326,7 +312,6 @@
     player.addEventListener('error', e => console.error(e.detail));
 
     await loadChannel(activeIdx);
-    tryAutoFullscreen();
   }
 
   // ── Channel buttons ───────────────────────────────────────────────────────
