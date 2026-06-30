@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self' https://fonts.gstatic.com;
+    script-src 'self' 'unsafe-inline' https://ajax.googleapis.com;
+    style-src 'self' 'unsafe-inline' https://ajax.googleapis.com;
+    connect-src 'self' https://*.cbsivideo.com https://ajax.googleapis.com https://cbsi.live.ott.irdeto.com;
+    img-src 'self' data: https://www.directvla.com;
+    media-src 'self' blob:;
+  ">
+  <title>DSPORTS</title>
+  <link rel="icon" type="image/png" href="https://www.directvla.com/favicon.ico">
+  <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/shaka-player/5.1.8/controls.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/shaka-player/5.1.8/shaka-player.ui.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #000;
+      font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      color: #f0f0f8;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       VIDEO GRID — holds 1 or 2 player panes, no gap
+       ════════════════════════════════════════════════════════ */
+    #video-grid {
+      width: 100vw; height: 100vh;
+      position: relative;
+      display: -webkit-flex;
+      display: flex;
+      -webkit-flex-direction: row;
+      flex-direction: row;
+      background: #000;
+    }
+
+    .player-pane {
+      position: relative;
+      background: #000;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    /* Single view: pane 0 takes the full screen, pane 1 is hidden */
+    #video-grid.single-view .player-pane[data-slot="0"] {
+      width: 100%;
+    }
+    #video-grid.single-view .player-pane[data-slot="1"] {
+      display: none;
+    }
+
+    /* Multi view: both panes share the screen 50/50, flush against
+       each other with no padding/margin/gap */
+    #video-grid.multi-view .player-pane {
+      width: 50%;
+      display: block;
+    }
+
+    .player-pane video {
+      width: 100%; height: 100%;
+      object-fit: contain;
+    }
+
+    /* ── Shaka UI accent overrides ───────────────────────── */
+    .shaka-controls-container,
+    .shaka-controls-container * {
+      --shaka-highlight-color: #4f7cff;
+    }
+    .shaka-seek-bar.played,
+    .shaka-volume-bar.played {
+      color: #4f7cff !important;
+    }
+    .shaka-controls-button-panel button:focus,
+    .shaka-controls-button-panel button:hover {
+      background: rgba(79,124,255,0.25) !important;
+      border-radius: 4px;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       LEFT CHANNEL SIDEBAR
+       ════════════════════════════════════════════════════════ */
+    #channel-sidebar {
+      position: absolute;
+      top: 0; left: 0; bottom: 120px;
+      z-index: 40;
+      display: -webkit-flex;
+      display: flex;
+      -webkit-flex-direction: column;
+      flex-direction: column;
+      -webkit-justify-content: center;
+      justify-content: center;
+      padding: 36px 20px;
+      pointer-events: none;
+      opacity: 0;
+      -webkit-transition: opacity 0.3s;
+      transition: opacity 0.3s;
+    }
+
+    #channel-sidebar.visible { opacity: 1; }
+
+    .ch-btn {
+      display: -webkit-flex;
+      display: flex;
+      -webkit-align-items: center;
+      align-items: center;
+      padding: 26px 32px;
+      margin-bottom: 16px;
+      border-radius: 16px;
+      border: 2px solid rgba(255,255,255,0.1);
+      background: rgba(0,0,0,0.72);
+      color: rgba(255,255,255,0.6);
+      cursor: pointer;
+      outline: none;
+      -webkit-transition: all 0.2s;
+      transition: all 0.2s;
+      -webkit-tap-highlight-color: transparent;
+      white-space: nowrap;
+      min-width: 240px;
+      pointer-events: auto;
+    }
+    .ch-btn:last-child { margin-bottom: 0; }
+
+    .ch-btn:hover, .ch-btn:focus {
+      border-color: rgba(255,255,255,0.35);
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      -webkit-transform: translateX(4px);
+      transform: translateX(4px);
+    }
+    .ch-btn.active {
+      border-color: #4f7cff;
+      background: rgba(79,124,255,0.18);
+      color: #fff;
+      box-shadow: 0 0 24px rgba(79,124,255,0.35), inset 0 0 0 1px #4f7cff;
+      -webkit-transform: translateX(4px);
+      transform: translateX(4px);
+    }
+    /* Secondary multi-view slot gets a different accent so it's
+       distinguishable from the primary active channel */
+    .ch-btn.active-secondary {
+      border-color: #ff9f4f;
+      background: rgba(255,159,79,0.18);
+      color: #fff;
+      box-shadow: 0 0 24px rgba(255,159,79,0.35), inset 0 0 0 1px #ff9f4f;
+      -webkit-transform: translateX(4px);
+      transform: translateX(4px);
+    }
+
+    .ch-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      -webkit-flex-shrink: 0;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.18);
+      margin-right: 18px;
+    }
+    .ch-btn.active .ch-dot {
+      background: #4f7cff;
+      box-shadow: 0 0 6px #4f7cff;
+      -webkit-animation: livepulse 1.6s ease-in-out infinite;
+      animation: livepulse 1.6s ease-in-out infinite;
+    }
+    .ch-btn.active-secondary .ch-dot {
+      background: #ff9f4f;
+      box-shadow: 0 0 6px #ff9f4f;
+      -webkit-animation: livepulse 1.6s ease-in-out infinite;
+      animation: livepulse 1.6s ease-in-out infinite;
+    }
+    @-webkit-keyframes livepulse {
+      0%,100% { opacity: 1; -webkit-transform: scale(1); transform: scale(1); }
+      50%      { opacity: 0.5; -webkit-transform: scale(0.7); transform: scale(0.7); }
+    }
+    @keyframes livepulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.5; transform: scale(0.7); }
+    }
+
+    .ch-name {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      -webkit-flex: 1;
+      flex: 1;
+    }
+
+    /* + / − multi-view toggle button, right-aligned in the card */
+    .ch-multiview-btn {
+      -webkit-flex-shrink: 0;
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      margin-left: 18px;
+      border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.75);
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1;
+      display: -webkit-flex;
+      display: flex;
+      -webkit-align-items: center;
+      align-items: center;
+      -webkit-justify-content: center;
+      justify-content: center;
+      cursor: pointer;
+      outline: none;
+      -webkit-transition: all 0.2s;
+      transition: all 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .ch-multiview-btn:hover, .ch-multiview-btn:focus {
+      border-color: #4f7cff;
+      background: rgba(79,124,255,0.25);
+      color: #fff;
+    }
+    .ch-multiview-btn.remove-mode {
+      border-color: rgba(255,79,79,0.4);
+      color: rgba(255,140,140,0.85);
+    }
+    .ch-multiview-btn.remove-mode:hover, .ch-multiview-btn.remove-mode:focus {
+      border-color: #ff4f4f;
+      background: rgba(255,79,79,0.25);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="video-grid" class="single-view">
+    <div class="player-pane" data-slot="0">
+      <video id="video-0" playsinline></video>
+    </div>
+    <div class="player-pane" data-slot="1">
+      <video id="video-1" playsinline></video>
+    </div>
+  </div>
+
+  <div id="channel-sidebar">
+    <button class="ch-btn active" data-idx="0" tabindex="0">
+      <span class="ch-dot"></span>
+      <span class="ch-name">DSPORTS</span>
+      <span class="ch-multiview-btn" data-idx="0" tabindex="0">+</span>
+    </button>
+    <button class="ch-btn" data-idx="1" tabindex="0">
+      <span class="ch-dot"></span>
+      <span class="ch-name">DSPORTS 2</span>
+      <span class="ch-multiview-btn" data-idx="1" tabindex="0">+</span>
+    </button>
+    <button class="ch-btn" data-idx="2" tabindex="0">
+      <span class="ch-dot"></span>
+      <span class="ch-name">DSPORTS +</span>
+      <span class="ch-multiview-btn" data-idx="2" tabindex="0">+</span>
+    </button>
+  </div>
+
+<script>
+  // ── Channel definitions ───────────────────────────────────────────────────
+  // Each channel has both a DASH+ClearKey stream and an HLS+FairPlay stream.
+  // The correct one is selected at runtime based on browser capability.
+  var CERT_URL = 'https://cbsi.live.ott.irdeto.com/licenseServer/streaming/v1/cbsi/getcertificate?applicationId=cbsi';
+
+  var CHANNELS = [
+    {
+      name: 'DSPORTS',
+      dash:    'https://prope66bd35h.airspace-cdn.cbsivideo.com/out/v1/eb04c8bf15a94f14ad1d952659d422b7/manifest.mpd',
+      keyId:   '9afc53e82bb24c20a5835a84138f6c13',
+      key:     'abdd52917474f2342ff04f0d4722123a',
+      hls:     'https://prope66bd35h.airspace-cdn.cbsivideo.com/out/v1/7a5518dd1e6241ffa5d705d4584536c2/manifest.m3u8',
+      licenseUrl: 'https://cbsi.live.ott.irdeto.com/streaming/getckc?CrmId=cbsi&AccountId=cbsi&ContentId=08b6479b-e499-4d83-9f26-8178381228c0&KeyId=9afc53e8-2bb2-4c20-a583-5a84138f6c13',
+    },
+    {
+      name: 'DSPORTS 2',
+      dash:    'https://prope79d3g55.airspace-cdn.cbsivideo.com/out/v1/faa5cf8cb19e4de99417df05a463f9d5/manifest.mpd',
+      keyId:   '010b4fa338184f52a712121ad62ae9b4',
+      key:     'e310bad2a570b60f7799e2aa0fb33a71',
+      hls:     'https://prope79d3g55.airspace-cdn.cbsivideo.com/out/v1/6681c47968444fa6aecfd4e051ae1fe2/manifest.m3u8',
+      licenseUrl: 'https://cbsi.live.ott.irdeto.com/streaming/getckc?CrmId=cbsi&AccountId=cbsi&ContentId=f4bd2437-8dcf-463f-97a6-baf1f2f9e8ae&KeyId=010b4fa3-3818-4f52-a712-121ad62ae9b4',
+    },
+    {
+      name: 'DSPORTS +',
+      dash:    'https://prope9660ag6.airspace-cdn.cbsivideo.com/out/v1/a634dbd5b8474f38b38a8ce37dd77b50/manifest.mpd',
+      keyId:   '41121cea7a3d49a78c9496d1b0d919e4',
+      key:     'de048d4c2870b8d53961aaeac1804947',
+      hls:     'https://prope9660ag6.airspace-cdn.cbsivideo.com/out/v1/927b40f376b44ffaafce21583bf791cc/manifest.m3u8',
+      licenseUrl: 'https://cbsi.live.ott.irdeto.com/streaming/getckc?CrmId=cbsi&AccountId=cbsi&ContentId=947cfe23-6136-404f-a617-f82d73a479d7&KeyId=41121cea-7a3d-49a7-8c94-96d1b0d919e4',
+    },
+  ];
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  // "slots" holds up to two simultaneous players. Slot 0 is always the
+  // primary/full-screen player. Slot 1 only exists in multi-view mode.
+  var slots = [
+    { player: null, ui: null, video: null, container: null, channelIdx: 0 },
+    { player: null, ui: null, video: null, container: null, channelIdx: null },
+  ];
+
+  var isMultiView   = false;
+  var useFairPlay   = false; // set during capability detection
+
+  var videoGrid = document.getElementById('video-grid');
+  var sidebar   = document.getElementById('channel-sidebar');
+  var chBtns    = document.querySelectorAll('.ch-btn');
+  var mvBtns    = document.querySelectorAll('.ch-multiview-btn');
+
+  slots[0].video     = document.getElementById('video-0');
+  slots[0].container = document.querySelector('.player-pane[data-slot="0"]');
+  slots[1].video     = document.getElementById('video-1');
+  slots[1].container = document.querySelector('.player-pane[data-slot="1"]');
+
+  // ── Sidebar idle timer ────────────────────────────────────────────────────
+  var IDLE_MS   = 3000;
+  var idleTimer = null;
+
+  function showSidebar() {
+    sidebar.classList.add('visible');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(hideSidebar, IDLE_MS);
+  }
+
+  function hideSidebar() {
+    if (!sidebar.contains(document.activeElement)) {
+      sidebar.classList.remove('visible');
+    }
+  }
+
+  // ── Util ──────────────────────────────────────────────────────────────────
+  function hexToBase64url(hex) {
+    hex = hex.replace(/\s/g, '');
+    var bytes = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
+    return btoa(String.fromCharCode.apply(null, bytes))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  // ── Cross-browser fullscreen ──────────────────────────────────────────────
+  function getFullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+  function requestFullscreen(el) {
+    if (el.requestFullscreen)            { el.requestFullscreen().catch(function(){}); }
+    else if (el.webkitRequestFullscreen) { el.webkitRequestFullscreen(); }
+  }
+  function exitFullscreen() {
+    if (document.exitFullscreen)              { document.exitFullscreen(); }
+    else if (document.webkitExitFullscreen)   { document.webkitExitFullscreen(); }
+  }
+
+  // ── Safe play ─────────────────────────────────────────────────────────────
+  function safePlay(video) {
+    var p = video.play();
+    if (p && p.catch) { p.catch(function() {}); }
+  }
+
+  // ── Capability detection ──────────────────────────────────────────────────
+  function detectFairPlay() {
+    var isAppleEngine = /AppleWebKit/.test(navigator.userAgent) &&
+                         !/Chrome|Chromium|Edg|OPR/.test(navigator.userAgent);
+    if (!isAppleEngine) return false;
+
+    try {
+      return shaka.drm.FairPlay.isFairPlaySupported();
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ── Build player config per stream type ──────────────────────────────────
+  function buildClearKeyConfig(ch) {
+    var clearKeys = {};
+    clearKeys[hexToBase64url(ch.keyId)] = hexToBase64url(ch.key);
+    return { drm: { clearKeys: clearKeys } };
+  }
+
+  function buildFairPlayConfig(ch) {
+    return {
+      drm: {
+        servers: {
+          'com.apple.fps': ch.licenseUrl,
+        },
+        advanced: {
+          'com.apple.fps': {
+            serverCertificateUri: CERT_URL,
+          },
+        },
+      },
+    };
+  }
+
+  // Irdeto's getckc response is a raw CKC arraybuffer in most integrations,
+  // but some deployments wrap it in <ckc>...</ckc> or base64-encode it as
+  // text. This filter normalizes either case; it's a no-op if the response
+  // is already a raw binary CKC.
+  function setupFairPlayResponseFilter(player) {
+    player.getNetworkingEngine().registerResponseFilter(function(type, response) {
+      if (type !== shaka.net.NetworkingEngine.RequestType.LICENSE) return;
+
+      var text;
+      try {
+        text = shaka.util.StringUtils.fromUTF8(response.data).trim();
+      } catch (e) {
+        return;
+      }
+
+      var looksLikeXml    = text.substr(0, 5) === '<ckc>';
+      var looksLikeBase64 = /^[A-Za-z0-9+/=]+$/.test(text) && text.length > 0;
+
+      if (looksLikeXml) {
+        text = text.slice(5, text.length - 6);
+      }
+      if (looksLikeXml || looksLikeBase64) {
+        try {
+          response.data = shaka.util.Uint8ArrayUtils.fromBase64(text).buffer;
+        } catch (e) {
+          // Not valid base64 after all — leave response untouched.
+        }
+      }
+    });
+  }
+
+  // ── Slot lifecycle ────────────────────────────────────────────────────────
+  // Creates a fresh shaka.Player + UI for a slot, attached to its video el.
+  function createPlayerForSlot(slot) {
+    var player = new shaka.Player();
+    return player.attach(slot.video).then(function() {
+      if (useFairPlay) setupFairPlayResponseFilter(player);
+
+      var ui = new shaka.ui.Overlay(player, slot.container, slot.video);
+      ui.configure({
+        controlPanelElements: [
+          'play_pause',
+          'time_and_duration',
+          'mute',
+          'volume',
+          'spacer',
+          'overflow_menu',
+          'fullscreen',
+        ],
+        contextMenuElements: ['statistics'],
+        overflowMenuButtons: ['quality', 'statistics'],
+        statisticsList: [
+          'width', 'height', 'currentCodecs',
+          'estimatedBandwidth', 'streamBandwidth',
+          'liveLatency', 'bufferingTime', 'stallsDetected',
+        ],
+      });
+
+      player.addEventListener('error', function(e) {
+        console.error('Shaka error (slot):', e.detail);
+      });
+
+      slot.player = player;
+      slot.ui = ui;
+    });
+  }
+
+  // Loads a channel into an already-created slot.
+  function loadIntoSlot(slot, channelIdx) {
+    if (!slot.player) return Promise.resolve();
+    var ch = CHANNELS[channelIdx];
+    var manifest, config;
+
+    if (useFairPlay) {
+      manifest = ch.hls;
+      config   = buildFairPlayConfig(ch);
+    } else {
+      manifest = ch.dash;
+      config   = buildClearKeyConfig(ch);
+    }
+
+    slot.channelIdx = channelIdx;
+
+    return slot.player.unload().then(function() {
+      slot.player.configure(config);
+      return slot.player.load(manifest);
+    }).then(function() {
+      safePlay(slot.video);
+    }).catch(function(e) {
+      console.error('loadIntoSlot error:', e);
+    });
+  }
+
+  function destroySlot(slot) {
+    if (!slot.player) return Promise.resolve();
+    var p = slot.player;
+    var u = slot.ui;
+    slot.player = null;
+    slot.ui = null;
+    slot.channelIdx = null;
+    var destroyUi = u ? u.destroy() : Promise.resolve();
+    return destroyUi.then(function() {
+      return p.destroy();
+    }).catch(function(e) {
+      console.error('destroySlot error:', e);
+    });
+  }
+
+  // ── Sidebar visual state sync ────────────────────────────────────────────
+  function syncSidebarState() {
+    chBtns.forEach(function(btn) {
+      var idx = parseInt(btn.getAttribute('data-idx'), 10);
+      btn.classList.remove('active', 'active-secondary');
+      if (idx === slots[0].channelIdx) {
+        btn.classList.add('active');
+      } else if (isMultiView && idx === slots[1].channelIdx) {
+        btn.classList.add('active-secondary');
+      }
+    });
+
+    mvBtns.forEach(function(btn) {
+      var idx = parseInt(btn.getAttribute('data-idx'), 10);
+      var isInMultiView = isMultiView &&
+        (idx === slots[0].channelIdx || idx === slots[1].channelIdx);
+
+      if (isInMultiView) {
+        btn.textContent = '\u2212'; // minus sign
+        btn.classList.add('remove-mode');
+      } else {
+        btn.textContent = '+';
+        btn.classList.remove('remove-mode');
+      }
+
+      // Hide the toggle entirely on the primary single-view channel,
+      // since it can't be "added" to multiview (it's already the base)
+      // nor removed (there'd be nothing left).
+      if (!isMultiView && idx === slots[0].channelIdx) {
+        btn.style.visibility = 'hidden';
+      } else {
+        btn.style.visibility = 'visible';
+      }
+    });
+  }
+
+  // ── Channel switching (single-view) ──────────────────────────────────────
+  function switchPrimaryChannel(idx) {
+    if (idx === slots[0].channelIdx && !isMultiView) return;
+    var wasFullscreen = !!getFullscreenElement();
+    showSidebar();
+
+    loadIntoSlot(slots[0], idx).then(function() {
+      syncSidebarState();
+      if (wasFullscreen && !getFullscreenElement()) {
+        requestFullscreen(videoGrid);
+      }
+    });
+  }
+
+  // ── Enter multi-view: add a second channel alongside the current one ────
+  function enterMultiView(idx) {
+    if (idx === slots[0].channelIdx) return; // can't multiview with itself
+    showSidebar();
+
+    videoGrid.classList.remove('single-view');
+    videoGrid.classList.add('multi-view');
+    isMultiView = true;
+
+    var setupPromise = slots[1].player
+      ? Promise.resolve()
+      : createPlayerForSlot(slots[1]);
+
+    setupPromise.then(function() {
+      return loadIntoSlot(slots[1], idx);
+    }).then(function() {
+      syncSidebarState();
+    });
+  }
+
+  // ── Exit multi-view: remove one of the two active channels ──────────────
+  function exitMultiView(idxToRemove) {
+    if (idxToRemove === slots[0].channelIdx) {
+      // Removing the primary: promote slot 1 into slot 0's position
+      var promoteIdx = slots[1].channelIdx;
+      destroySlot(slots[1]).then(function() {
+        videoGrid.classList.remove('multi-view');
+        videoGrid.classList.add('single-view');
+        isMultiView = false;
+        return loadIntoSlot(slots[0], promoteIdx);
+      }).then(function() {
+        syncSidebarState();
+      });
+    } else if (idxToRemove === slots[1].channelIdx) {
+      // Removing the secondary: just tear it down, keep slot 0 as-is
+      destroySlot(slots[1]).then(function() {
+        videoGrid.classList.remove('multi-view');
+        videoGrid.classList.add('single-view');
+        isMultiView = false;
+        syncSidebarState();
+      });
+    }
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  function init() {
+    shaka.polyfill.installAll();
+
+    if (!shaka.Player.isBrowserSupported()) {
+      console.error('Browser does not support DASH/EME.');
+      return;
+    }
+
+    useFairPlay = detectFairPlay();
+    console.log('Stream mode:', useFairPlay ? 'HLS/FairPlay' : 'DASH/ClearKey');
+
+    createPlayerForSlot(slots[0]).then(function() {
+      return loadIntoSlot(slots[0], slots[0].channelIdx);
+    }).then(function() {
+      syncSidebarState();
+
+      // ── Sidebar triggers ────────────────────────────────
+      videoGrid.addEventListener('mousemove',  showSidebar);
+      videoGrid.addEventListener('mouseenter', showSidebar);
+      videoGrid.addEventListener('touchstart', showSidebar);
+      videoGrid.addEventListener('click',      showSidebar);
+
+      // WebOS Magic Remote cursor visibility event
+      window.addEventListener('cursorStateChange', function(e) {
+        if (e.detail && e.detail.visibility) {
+          showSidebar();
+        }
+      });
+
+      // Sidebar focus management (D-pad / Tab navigation)
+      sidebar.addEventListener('focusin', function() {
+        clearTimeout(idleTimer);
+        sidebar.classList.add('visible');
+      });
+      sidebar.addEventListener('focusout', function() {
+        if (!sidebar.contains(document.activeElement)) {
+          idleTimer = setTimeout(hideSidebar, IDLE_MS);
+        }
+      });
+
+      showSidebar();
+    }).catch(function(e) {
+      console.error('init error:', e);
+    });
+  }
+
+  // ── Channel buttons (primary switch) ─────────────────────────────────────
+  chBtns.forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      // Don't trigger primary switch if the +/- button inside was clicked
+      if (e.target.classList.contains('ch-multiview-btn')) return;
+      var idx = parseInt(btn.getAttribute('data-idx'), 10);
+      btn.blur();
+      switchPrimaryChannel(idx);
+    });
+  });
+
+  // ── +/- multi-view toggle buttons ─────────────────────────────────────────
+  mvBtns.forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var idx = parseInt(btn.getAttribute('data-idx'), 10);
+      btn.blur();
+
+      var isThisChannelInMultiView = isMultiView &&
+        (idx === slots[0].channelIdx || idx === slots[1].channelIdx);
+
+      if (isThisChannelInMultiView) {
+        exitMultiView(idx);
+      } else {
+        enterMultiView(idx);
+      }
+    });
+
+    // Keyboard activation (Enter/Space) for D-pad/remote navigation
+    btn.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        btn.click();
+      }
+    });
+  });
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    var key = e.key;
+
+    if (key === 'm' || key === 'M') {
+      slots[0].video.muted = !slots[0].video.muted;
+
+    } else if (key === 'f' || key === 'F') {
+      if (!getFullscreenElement()) requestFullscreen(videoGrid);
+      else exitFullscreen();
+    }
+  });
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>
